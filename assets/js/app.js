@@ -1,127 +1,46 @@
-document.addEventListener('DOMContentLoaded', () => {
-    // Elements
-    const menuToggle = document.getElementById('menu-toggle');
-    const mobileMenu = document.getElementById('mobile-menu');
-    const closeMenu = document.getElementById('close-menu');
-    const menuOverlay = document.getElementById('menu-overlay');
-    const mobileSearchToggle = document.getElementById('mobile-search-toggle');
-    const mobileSearchBar = document.getElementById('mobile-search-bar');
-    const header = document.querySelector('.site-header');
+document.addEventListener("DOMContentLoaded", () => {
+  const player = videojs("player");
+  const countrySel = document.getElementById("country");
+  const categorySel = document.getElementById("category");
+  const list = document.getElementById("channels");
 
-    // Mobile menu open/close
-    function openMobileMenu() {
-        if (mobileMenu) {
-            mobileMenu.classList.add('active');
-            mobileMenu.setAttribute('aria-hidden', 'false');
-        }
-        if (menuToggle) menuToggle.setAttribute('aria-expanded', 'true');
-        if (menuOverlay) menuOverlay.classList.add('active');
-        if (menuOverlay) menuOverlay.setAttribute('aria-hidden', 'false');
-        document.body.classList.add('mobile-menu-open');
-    }
+  fetch("data/channels.json")
+    .then(r => r.json())
+    .then(channels => {
+      const countries = [...new Set(channels.map(c => c.country))].sort();
+      const categories = [...new Set(channels.map(c => c.category))].sort();
 
-    function closeMobileMenuFunc() {
-        if (mobileMenu) {
-            mobileMenu.classList.remove('active');
-            mobileMenu.setAttribute('aria-hidden', 'true');
-        }
-        if (menuToggle) menuToggle.setAttribute('aria-expanded', 'false');
-        if (menuOverlay) menuOverlay.classList.remove('active');
-        if (menuOverlay) menuOverlay.setAttribute('aria-hidden', 'true');
-        document.body.classList.remove('mobile-menu-open');
-    }
+      countrySel.innerHTML = '<option value="">All Countries</option>' +
+        countries.map(c => `<option>${c}</option>`).join("");
 
-    if (menuToggle) {
-        menuToggle.addEventListener('click', () => {
-            const expanded = menuToggle.getAttribute('aria-expanded') === 'true';
-            if (expanded) closeMobileMenuFunc(); else openMobileMenu();
-        });
-    }
+      categorySel.innerHTML = '<option value="">All Categories</option>' +
+        categories.map(c => `<option>${c}</option>`).join("");
 
-    if (closeMenu) closeMenu.addEventListener('click', closeMobileMenuFunc);
-    if (menuOverlay) menuOverlay.addEventListener('click', closeMobileMenuFunc);
+      function render() {
+        list.innerHTML = "";
+        const c = countrySel.value;
+        const g = categorySel.value;
 
-    // Mobile search toggle
-    if (mobileSearchToggle && mobileSearchBar) {
-        mobileSearchToggle.addEventListener('click', () => {
-            const expanded = mobileSearchToggle.getAttribute('aria-expanded') === 'true';
-            if (expanded === 'true') {
-                mobileSearchBar.classList.remove('active');
-                mobileSearchBar.setAttribute('aria-hidden', 'true');
-                mobileSearchToggle.setAttribute('aria-expanded', 'false');
-            } else {
-                mobileSearchBar.classList.add('active');
-                mobileSearchBar.setAttribute('aria-hidden', 'false');
-                mobileSearchToggle.setAttribute('aria-expanded', 'true');
-                // Move focus to search input
-                const input = mobileSearchBar.querySelector('input[type="search"]');
-                if (input) input.focus();
-            }
-        });
-    }
+        channels
+          .filter(ch => (!c || ch.country === c) && (!g || ch.category === g))
+          .slice(0, 300)
+          .forEach(ch => {
+            const div = document.createElement("div");
+            div.className = "channel";
+            div.textContent = ch.name;
+            div.onclick = () => {
+              player.src({ src: ch.url, type: "application/x-mpegURL" });
+              player.play().catch(()=>{});
+            };
+            list.appendChild(div);
+          });
+      }
 
-    // Close overlays / menus on Escape
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            closeMobileMenuFunc();
-            if (mobileSearchBar) {
-                mobileSearchBar.classList.remove('active');
-                mobileSearchBar.setAttribute('aria-hidden', 'true');
-                if (mobileSearchToggle) mobileSearchToggle.setAttribute('aria-expanded', 'false');
-            }
-        }
+      countrySel.onchange = render;
+      categorySel.onchange = render;
+      render();
+    })
+    .catch(() => {
+      list.innerHTML = "Failed to load channels.json";
     });
-
-    // Mobile menu section toggles (Menu / Brands / Types)
-    const sectionToggles = document.querySelectorAll('.mobile-section-toggle');
-    if (sectionToggles.length > 0) {
-        sectionToggles.forEach(btn => {
-            btn.addEventListener('click', () => {
-                const targetId = btn.getAttribute('aria-controls');
-                const content = document.getElementById(targetId);
-                const expanded = btn.getAttribute('aria-expanded') === 'true';
-                btn.setAttribute('aria-expanded', expanded ? 'false' : 'true');
-                if (content) {
-                    if (expanded) {
-                        content.hidden = true;
-                        content.classList.remove('active');
-                    } else {
-                        content.hidden = false;
-                        content.classList.add('active');
-                    }
-                }
-            });
-        });
-    }
-
-    // Header scroll effect (safe-guard header existence)
-    if (header) {
-        window.addEventListener('scroll', () => {
-            if (window.scrollY > 20) {
-                header.style.background = 'rgba(15, 23, 42, 0.9)';
-            } else {
-                header.style.background = 'var(--bg-glass)';
-            }
-        });
-    }
-
-    // Device Variant Switching (unchanged logic)
-    const variantBtns = document.querySelectorAll('.variant-btn');
-    const priceOfficial = document.getElementById('price-official');
-    const priceUnofficial = document.getElementById('price-unofficial');
-
-    if (variantBtns.length > 0) {
-        variantBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                // Remove active class from all
-                variantBtns.forEach(b => b.classList.remove('active'));
-                // Add active to clicked
-                btn.classList.add('active');
-
-                // Update prices
-                if (priceOfficial) priceOfficial.textContent = btn.getAttribute('data-price-official');
-                if (priceUnofficial) priceUnofficial.textContent = btn.getAttribute('data-price-unofficial');
-            });
-        });
-    }
 });

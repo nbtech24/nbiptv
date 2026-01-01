@@ -1,27 +1,228 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>IPTV Web Player</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link href="https://vjs.zencdn.net/8.5.0/video-js.css" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/style.css">
+  <meta charset="UTF-8" />
+  <title>IPTV Player</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- HLS.js -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+  <style>
+    :root {
+      --bg: #0f1115;
+      --card: #161a22;
+      --primary: #00c6ff;
+      --text: #ffffff;
+      --muted: #9aa0a6;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      background: #0b0e13;
+      padding: 12px;
+      text-align: center;
+      font-weight: 600;
+      font-size: 18px;
+      border-bottom: 1px solid #222;
+    }
+
+    /* PLAYER */
+    .player-wrapper {
+      position: sticky;
+      top: 48px;
+      z-index: 999;
+      background: black;
+    }
+
+    video {
+      width: 100%;
+      height: auto;
+      max-height: 260px;
+      background: black;
+    }
+
+    .now-playing {
+      padding: 10px;
+      background: var(--card);
+      font-size: 14px;
+      color: var(--primary);
+    }
+
+    /* CATEGORIES */
+    .categories {
+      display: flex;
+      overflow-x: auto;
+      gap: 10px;
+      padding: 10px;
+      background: #0b0e13;
+    }
+
+    .categories button {
+      background: var(--card);
+      color: var(--text);
+      border: none;
+      padding: 8px 14px;
+      border-radius: 20px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .categories button.active {
+      background: var(--primary);
+      color: #000;
+    }
+
+    /* CHANNEL LIST */
+    .channels {
+      padding: 10px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 10px;
+    }
+
+    .channel {
+      background: var(--card);
+      border-radius: 10px;
+      padding: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: 0.2s;
+    }
+
+    .channel:hover {
+      background: #1f2430;
+    }
+
+    .channel img {
+      width: 42px;
+      height: 42px;
+      object-fit: contain;
+      background: #000;
+      border-radius: 6px;
+    }
+
+    .channel span {
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    /* DESKTOP */
+    @media (min-width: 900px) {
+      video {
+        max-height: 420px;
+      }
+
+      .channels {
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      }
+    }
+  </style>
 </head>
+
 <body>
 
-<header class="header">
-  <select id="country"></select>
-  <select id="category"></select>
-</header>
+<header>📺 IPTV Player</header>
 
-<main class="main">
-  <aside id="channels" class="channel-list">Loading channels…</aside>
-  <section class="player-area">
-    <video id="player" class="video-js vjs-fluid" controls autoplay></video>
-  </section>
-</main>
+<div class="player-wrapper">
+  <video id="video" controls autoplay></video>
+  <div class="now-playing" id="nowPlaying">Select a channel</div>
+</div>
 
-<script src="https://vjs.zencdn.net/8.5.0/video.min.js"></script>
-<script src="assets/js/app.js"></script>
+<div class="categories" id="categories"></div>
+
+<div class="channels" id="channels"></div>
+
+<script>
+  const video = document.getElementById("video");
+  const nowPlaying = document.getElementById("nowPlaying");
+  const channelsEl = document.getElementById("channels");
+  const categoriesEl = document.getElementById("categories");
+
+  let hls;
+  let allChannels = [];
+  let currentCategory = "All";
+
+  fetch("data/channels.json")
+    .then(res => res.json())
+    .then(data => {
+      allChannels = data;
+      renderCategories();
+      renderChannels();
+    });
+
+  function playChannel(channel) {
+    if (hls) {
+      hls.destroy();
+    }
+
+    if (Hls.isSupported()) {
+      hls = new Hls({
+        maxBufferLength: 30,
+        liveSyncDuration: 3
+      });
+      hls.loadSource(channel.url);
+      hls.attachMedia(video);
+    } else {
+      video.src = channel.url;
+    }
+
+    nowPlaying.textContent = "Now Playing: " + channel.name;
+  }
+
+  function renderChannels() {
+    channelsEl.innerHTML = "";
+
+    allChannels
+      .filter(c => currentCategory === "All" || c.group === currentCategory)
+      .forEach(channel => {
+        const div = document.createElement("div");
+        div.className = "channel";
+        div.innerHTML = `
+          <img src="${channel.logo || 'https://via.placeholder.com/80'}">
+          <span>${channel.name}</span>
+        `;
+        div.onclick = () => playChannel(channel);
+        channelsEl.appendChild(div);
+      });
+  }
+
+  function renderCategories() {
+    const groups = ["All", ...new Set(allChannels.map(c => c.group))];
+
+    categoriesEl.innerHTML = "";
+    groups.forEach(group => {
+      const btn = document.createElement("button");
+      btn.textContent = group;
+      if (group === "All") btn.classList.add("active");
+
+      btn.onclick = () => {
+        currentCategory = group;
+        document.querySelectorAll(".categories button").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        renderChannels();
+      };
+
+      categoriesEl.appendChild(btn);
+    });
+  }
+</script>
+
 </body>
 </html>
